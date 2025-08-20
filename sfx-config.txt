@@ -1,5 +1,0 @@
-;!@Install@!UTF-8!
-Title="Warden Mode Switcher"
-BeginPrompt="This will extract and run the Warden Mode Switcher. Please review README in the source folder. Continue?"
-RunProgram="1Run_Toggle_WardenMode.bat"
-;!@InstallEnd@!
