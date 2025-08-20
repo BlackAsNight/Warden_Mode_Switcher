@@ -1,0 +1,9 @@
+# Build artifacts
+Warden_Switcher.exe
+Warden_Switcher.sed
+*.7z
+*.zip
+*.bak
+*.tmp
+Backups/
+*.log
