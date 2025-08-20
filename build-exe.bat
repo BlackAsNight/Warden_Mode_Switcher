@@ -1,4 +1,4 @@
-@echo off
+@echo on
 setlocal EnableExtensions EnableDelayedExpansion
 
 REM Build a single EXE using built-in IExpress (no installs required)
@@ -61,19 +61,27 @@ for %%F in ("%HERE%%BAT%" "%HERE%%PS1%" "%HERE%%DOC%") do (
 echo Building %OUT% ...
 set "IEXPRESS=%SystemRoot%\System32\iexpress.exe"
 if not exist "%IEXPRESS%" set "IEXPRESS=iexpress.exe"
-"%IEXPRESS%" /N /Q "%SED%"
+echo Using IExpress at: "%IEXPRESS%"
+if not exist "%SystemRoot%\System32\iexpress.exe" (
+  echo [WARN] iexpress.exe not found at system path. Relying on PATH lookup.
+)
+rem Show UI (no /Q) so failures are visible
+"%IEXPRESS%" /N "%SED%"
 set "ERR=%ERRORLEVEL%"
 if not "%ERR%"=="0" (
   echo [ERROR] IExpress failed with code %ERR%
   echo If 'iexpress' is not found, enable the 'IExpress Wizard' Windows feature or run this as Administrator.
+  pause
   exit /b %ERR%
 )
 
 if exist "%OUT%" (
   echo Done: "%OUT%"
   echo README will NOT be embedded; it was only shown as a license prompt.
+  pause
   exit /b 0
 ) else (
   echo [ERROR] Build completed but output EXE was not found.
+  pause
   exit /b 2
 )
