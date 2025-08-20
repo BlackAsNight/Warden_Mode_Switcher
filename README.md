@@ -3,7 +3,7 @@ It switches your save games to different camera modes.
 
 				                      Warden mode autoswitching script.
 
-1) Copy the "Warden_Mode_Switcher" folder into your Prison Architect game folder. (where your PA.exe is)
+1) Copy the "Warden_Mode_Switcher" folder to wherever you feel like.
 
 2) Run your "Warden_mode_toggle.bat" and follow the prompt instructions
 
