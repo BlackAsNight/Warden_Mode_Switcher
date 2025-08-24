@@ -355,8 +355,6 @@ function Ensure-WardenModeBlock {
     return $result
 }
 
-if ($WhatIf) { Write-Host 'WhatIf: no changes written.'; exit 0 }
-
 function Set-InGameBlockFlag {
     param(
         [string]$fullText,
@@ -529,12 +527,9 @@ try {
     $ts = (Get-Date).ToString('yyyyMMdd_HHmmss')
     $bkPrison = Join-Path $backupDir ("{0}-{1}.prison" -f $saveBase, $ts)
     $bkPng    = Join-Path $backupDir ("{0}-{1}.png"    -f $saveBase, $ts)
-    # Changed from Write-Host to Log for silent operation
-    # Old: Write-Host ("Creating backup set -> {0}" -f (Split-Path -Leaf $bkPrison))
-    # New: Log ("Backup created: {0}" -f (Split-Path -Leaf $bkPrison))
+    Copy-Item -LiteralPath $SavePath -Destination $bkPrison -Force
+    Log ("Backup created: {0}" -f (Split-Path -Leaf $bkPrison))
     
-    # Old: Write-Host ("Pruned {0} old backup(s)." -f $n)
-    # New: Log ("Pruned {0} old backup(s)." -f $n)
     if (Test-Path -LiteralPath $pngPath) { Copy-Item -LiteralPath $pngPath -Destination $bkPng -Force }
     # Prune older backups beyond MaxBackups (based on .prison files)
     $existing = Get-ChildItem -LiteralPath $backupDir -Filter ("{0}-*.prison" -f $saveBase) | Sort-Object LastWriteTime -Descending
@@ -556,57 +551,6 @@ try {
     Write-Warning ("Backup step encountered an error: {0}" -f $_.Exception.Message)
 }
 
-# Replace the problematic file writing section with this:
-try {
-    # Create an immediate backup before writing
-    $immediateBackup = "$SavePath.immediate.bak"
-    Copy-Item -LiteralPath $SavePath -Destination $immediateBackup -Force
-    Log 'Created immediate backup before writing changes.'
-    
-    # Use direct write instead of atomic replacement
-    [System.IO.File]::WriteAllText($SavePath, $final, (New-Object System.Text.UTF8Encoding($false)))
-    Log 'Wrote changes directly to save file.'
-    
-    # Clean up temp file
-    if (Test-Path $tempNew) { Remove-Item -LiteralPath $tempNew -Force }
-} catch {
-    Write-Warning "Save file write failed: $($_.Exception.Message). Attempting to restore from backup."
-    Log "Save file write failed: $($_.Exception.Message)"
-    
-    # Try to restore from immediate backup if write fails
-    if (Test-Path -LiteralPath $immediateBackup) {
-        try {
-            Copy-Item -LiteralPath $immediateBackup -Destination $SavePath -Force
-            Write-Host "Restored from backup due to write failure."
-            Log "Restored from backup due to write failure."
-        } catch {
-            Write-Warning "Failed to restore from backup: $($_.Exception.Message)"
-            Log "Failed to restore from backup: $($_.Exception.Message)"
-        }
-    }
-    
-    # Exit with error
-    throw "Failed to write changes to save file."
-}
-
-# Sanitely refresh PNG thumbnail timestamp (some builds require this); no console messages
-if (Test-Path -LiteralPath $pngPath) {
-    try {
-        $tempPng = "$pngPath.new"
-        Log 'Refreshing PNG thumbnail timestamp...'
-        Copy-Item -LiteralPath $pngPath -Destination $tempPng -Force
-        $pngSwapBak = "$pngPath.bak"
-        if (-not (Invoke-WithRetry -Description 'Atomic replace png' -Action { [System.IO.File]::Replace($tempPng, $pngPath, $pngSwapBak) })) { throw "PNG replace failed" }
-        if (Test-Path -LiteralPath $pngSwapBak) { Remove-Item -LiteralPath $pngSwapBak -Force }
-        Log 'PNG thumbnail refresh complete (atomic replace).'
-    } catch {
-        Log ("PNG refresh failed: {0}" -f $_.Exception.Message)
-        if (Test-Path "$pngPath.new") { Remove-Item -LiteralPath "$pngPath.new" -Force }
-    }
-}
-
-Write-Host 'Done. Restart/Reload the save in-game to see the change.'
-Log 'Done.'
 
 # Helper: returns a list of office desk positions [{PosX,PosY}]
 function Get-OfficeDeskPositions {
@@ -753,7 +697,7 @@ if ($Desired -eq 'true') {
     }
 }
 
-# Backups/Restore setup
+# Setup backup directories early
 $pngPath = [System.IO.Path]::ChangeExtension($SavePath, '.png')
 $saveDir = Split-Path -Parent $SavePath
 $saveBase = [System.IO.Path]::GetFileNameWithoutExtension($SavePath)
@@ -793,106 +737,12 @@ if ($RestoreOnly) {
     exit 0
 }
 
-if ($WhatIf) { Write-Host 'WhatIf: no changes written.'; exit 0 }
-
 # Exit if WhatIf
 if ($WhatIf.IsPresent) {
     Write-Host "WhatIf: Would write changes to $SavePath"
-    return
+    exit 0
 }
 
-# Write to temp file first
-$tempNew = "$SavePath.new"
-[System.IO.File]::WriteAllText($tempNew, $final, (New-Object System.Text.UTF8Encoding($false)))
-Log 'Wrote changes to temp file.'
-
-# Create backup directories
-try {
-    $saveDir = Split-Path -Parent $SavePath
-    $saveBase = [System.IO.Path]::GetFileNameWithoutExtension($SavePath)
-    $backupDir = Join-Path $saveDir 'Backups'
-    if (-not (Test-Path -LiteralPath $backupDir)) { New-Item -ItemType Directory -Path $backupDir | Out-Null }
-    $ts = (Get-Date).ToString('yyyyMMdd_HHmmss')
-    $bkPrison = Join-Path $backupDir ("{0}-{1}.prison" -f $saveBase, $ts)
-    $bkPng    = Join-Path $backupDir ("{0}-{1}.png"    -f $saveBase, $ts)
-    # Changed from Write-Host to Log for silent operation
-    # Old: Write-Host ("Creating backup set -> {0}" -f (Split-Path -Leaf $bkPrison))
-    # New: Log ("Backup created: {0}" -f (Split-Path -Leaf $bkPrison))
-    
-    # Old: Write-Host ("Pruned {0} old backup(s)." -f $n)
-    # New: Log ("Pruned {0} old backup(s)." -f $n)
-    if (Test-Path -LiteralPath $pngPath) { Copy-Item -LiteralPath $pngPath -Destination $bkPng -Force }
-    # Prune older backups beyond MaxBackups (based on .prison files)
-    $existing = Get-ChildItem -LiteralPath $backupDir -Filter ("{0}-*.prison" -f $saveBase) | Sort-Object LastWriteTime -Descending
-    $keep = if ($MaxBackups -ge 1) { $MaxBackups } else { 1 }
-    if ($existing.Count -gt $keep) {
-        $toDelete = $existing[$keep..($existing.Count-1)]
-        $n = 0
-        foreach ($f in $toDelete) {
-            try {
-                Remove-Item -LiteralPath $f.FullName -Force -ErrorAction Stop
-                $pngPeer = [System.IO.Path]::ChangeExtension($f.FullName, '.png')
-                if (Test-Path -LiteralPath $pngPeer) { Remove-Item -LiteralPath $pngPeer -Force }
-                $n++
-            } catch { Log ("Prune failed for {0}: {1}" -f $f.FullName, $_.Exception.Message) }
-        }
-        if ($n -gt 0) { Write-Host ("Pruned {0} old backup(s)." -f $n) }
-    }
-} catch {
-    Write-Warning ("Backup step encountered an error: {0}" -f $_.Exception.Message)
-}
-
-# Replace the problematic file writing section with this:
-try {
-    # Create an immediate backup before writing
-    $immediateBackup = "$SavePath.immediate.bak"
-    Copy-Item -LiteralPath $SavePath -Destination $immediateBackup -Force
-    Log 'Created immediate backup before writing changes.'
-    
-    # Use direct write instead of atomic replacement
-    [System.IO.File]::WriteAllText($SavePath, $final, (New-Object System.Text.UTF8Encoding($false)))
-    Log 'Wrote changes directly to save file.'
-    
-    # Clean up temp file
-    if (Test-Path $tempNew) { Remove-Item -LiteralPath $tempNew -Force }
-} catch {
-    Write-Warning "Save file write failed: $($_.Exception.Message). Attempting to restore from backup."
-    Log "Save file write failed: $($_.Exception.Message)"
-    
-    # Try to restore from immediate backup if write fails
-    if (Test-Path -LiteralPath $immediateBackup) {
-        try {
-            Copy-Item -LiteralPath $immediateBackup -Destination $SavePath -Force
-            Write-Host "Restored from backup due to write failure."
-            Log "Restored from backup due to write failure."
-        } catch {
-            Write-Warning "Failed to restore from backup: $($_.Exception.Message)"
-            Log "Failed to restore from backup: $($_.Exception.Message)"
-        }
-    }
-    
-    # Exit with error
-    throw "Failed to write changes to save file."
-}
-
-# Sanitely refresh PNG thumbnail timestamp (some builds require this); no console messages
-if (Test-Path -LiteralPath $pngPath) {
-    try {
-        $tempPng = "$pngPath.new"
-        Log 'Refreshing PNG thumbnail timestamp...'
-        Copy-Item -LiteralPath $pngPath -Destination $tempPng -Force
-        $pngSwapBak = "$pngPath.bak"
-        if (-not (Invoke-WithRetry -Description 'Atomic replace png' -Action { [System.IO.File]::Replace($tempPng, $pngPath, $pngSwapBak) })) { throw "PNG replace failed" }
-        if (Test-Path -LiteralPath $pngSwapBak) { Remove-Item -LiteralPath $pngSwapBak -Force }
-        Log 'PNG thumbnail refresh complete (atomic replace).'
-    } catch {
-        Log ("PNG refresh failed: {0}" -f $_.Exception.Message)
-        if (Test-Path "$pngPath.new") { Remove-Item -LiteralPath "$pngPath.new" -Force }
-    }
-}
-
-Write-Host 'Done. Restart/Reload the save in-game to see the change.'
-Log 'Done.'
 
 # Position validation function
 function Test-InvalidPos([double]$x,[double]$y) {
