@@ -19,20 +19,6 @@ echo ============================
 echo   Prison Architect - Warden Toggle
 echo ============================
 
-rem 1) Ask for restore from backup first (every loop)
-:ASK_RESTORE
-echo.
-set "RESTORE="
-set /p RESTORE="Restore from backup first? (Y/N, Q=quit): "
-if /I "%RESTORE%"=="Q" goto :QUIT
-if /I "%RESTORE%"=="Y" (
-  if not defined SAVEPATH (
-    powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -RestoreOnly
-  ) else (
-    powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -RestoreOnly -SavePath "%SAVEPATH%"
-  )
-)
-
 :MENU
 echo.
 echo 1^) Architect mode
@@ -60,9 +46,11 @@ goto :AFTER_RUN
 :MODE2
 echo Running mode 2 ...
 if not defined SAVEPATH (
-  powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Desired true -CompatBlock -NoAvatar
+  rem Enable Warden Mode (compat block) WITHOUT disabling AvatarControl
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Desired true -CompatBlock
 ) else (
-  powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Desired true -CompatBlock -NoAvatar -SavePath "%SAVEPATH%"
+  rem Enable Warden Mode (compat block) on a specific save, keep AvatarControl
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%PS1%" -Desired true -CompatBlock -SavePath "%SAVEPATH%"
 )
 goto :AFTER_RUN
 
