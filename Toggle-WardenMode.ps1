@@ -245,7 +245,7 @@ function Remove-AvatarControlOutsideWarden {
 function Ensure-WardenModeBlock {
     param([string]$FullText, [string]$IdI, [string]$IdU, [string]$IsActive, [bool]$WriteFull, [bool]$CleanExisting, [bool]$Compat)
 
-    function New-WardenModeBlock([string]$ii,[string]$uu,[string]$active,[bool]$full,[bool]$compat,[string]$existingInventory){
+    function New-WardenModeBlock([string]$ii,[string]$uu,[string]$active,[bool]$full,[bool]$compat,[string]$existingInventory,[string]$existingGuardSquad){
         # Default clipboard inventory for first-time warden mode
         $defaultInventory = @(
             '    BEGIN Inventory',
@@ -255,8 +255,15 @@ function Ensure-WardenModeBlock {
             '    END'
         ) -join "`r`n"
 
+        # Default empty GuardSquad for first-time warden mode
+        $defaultGuardSquad = @(
+            '    BEGIN GuardSquad',
+            '    END'
+        ) -join "`r`n"
+
         if ($full) {
             $inventoryBlock = if ($existingInventory) { $existingInventory } else { $defaultInventory }
+            $guardSquadBlock = if ($existingGuardSquad) { $existingGuardSquad } else { $defaultGuardSquad }
             return @(
                 'BEGIN WardenMode',
                 ('    IsActive             ' + $active),
@@ -264,13 +271,13 @@ function Ensure-WardenModeBlock {
                 ('    WardenId.u           ' + $uu),
                 '    InventoryView        true',
                 $inventoryBlock,
-                '    BEGIN GuardSquad',
-                '    END',
+                $guardSquadBlock,
                 'END'
             ) -join "`r`n"
         }
         if ($compat) {
             $inventoryBlock = if ($existingInventory) { $existingInventory } else { $defaultInventory }
+            $guardSquadBlock = if ($existingGuardSquad) { $existingGuardSquad } else { $defaultGuardSquad }
             return @(
                 'BEGIN WardenMode',
                 ('    IsActive             ' + $active),
@@ -278,16 +285,19 @@ function Ensure-WardenModeBlock {
                 ('    WardenId.u           ' + $uu),
                 '    InventoryView        true',
                 $inventoryBlock,
-                '    BEGIN GuardSquad',
-                '    END',
+                $guardSquadBlock,
                 'END'
             ) -join "`r`n"
         }
+        $inventoryBlock = if ($existingInventory) { $existingInventory } else { $defaultInventory }
+        $guardSquadBlock = if ($existingGuardSquad) { $existingGuardSquad } else { $defaultGuardSquad }
         return @(
             'BEGIN WardenMode',
             ('    IsActive             ' + $active),
             ('    WardenId.i           ' + $ii),
             ('    WardenId.u           ' + $uu),
+            $inventoryBlock,
+            $guardSquadBlock,
             'END'
         ) -join "`r`n"
     }
@@ -325,12 +335,21 @@ function Ensure-WardenModeBlock {
 
         # Extract existing inventory if present
         $existingInventory = $null
+        $existingGuardSquad = $null
         $existingBlock = $lines[$firstBlockRange.Start..$firstBlockRange.End] -join "`r`n"
         $inventoryMatch = [regex]::Match($existingBlock, '(?ims)^\s*BEGIN\s+Inventory\b.*?^\s*END\s*$')
         if ($inventoryMatch.Success) {
             $existingInventory = $inventoryMatch.Value
             Write-Host "Found existing inventory block - preserving for persistent inventory."
             Log "Preserving existing inventory block for persistence."
+        }
+
+        # Extract existing GuardSquad if present
+        $guardSquadMatch = [regex]::Match($existingBlock, '(?ims)^\s*BEGIN\s+GuardSquad\b.*?^\s*END\s*$')
+        if ($guardSquadMatch.Success) {
+            $existingGuardSquad = $guardSquadMatch.Value
+            Write-Host "Found existing GuardSquad block - preserving to prevent duplicates."
+            Log "Preserving existing GuardSquad block to prevent duplication."
         }
 
         # For disable mode, preserve all existing data and only set IsActive=false
@@ -341,7 +360,7 @@ function Ensure-WardenModeBlock {
             return ($prefixLines + $preservedBlock + $suffixLines) -join "`r`n"
         }
 
-        $newBlockContent = (New-WardenModeBlock $IdI $IdU $IsActive $WriteFull $Compat $existingInventory)
+        $newBlockContent = (New-WardenModeBlock $IdI $IdU $IsActive $WriteFull $Compat $existingInventory $existingGuardSquad)
         
         Write-Host "Replaced existing WardenMode block with a new one."
         return ($prefixLines + $newBlockContent + $suffixLines) -join "`r`n"
@@ -349,7 +368,7 @@ function Ensure-WardenModeBlock {
 
     # No existing block: append a new one
     $trimmed = $FullText.TrimEnd()
-    $newBlock = (New-WardenModeBlock $IdI $IdU $IsActive $WriteFull $Compat $null)
+    $newBlock = (New-WardenModeBlock $IdI $IdU $IsActive $WriteFull $Compat $null $null)
     $result = if ($trimmed -match '\S') { $trimmed + "`r`n" + $newBlock } else { $newBlock }
     Write-Host 'Appended new WardenMode block at EOF.'
     return $result
@@ -463,6 +482,7 @@ if ($Desired -eq 'true' -and $HybridIsActiveOff.IsPresent) {
         }
     } catch {}
 }
+
 Log 'Normalization done.'
 
 # Backups/Restore setup
