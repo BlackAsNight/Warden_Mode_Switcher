@@ -463,7 +463,7 @@ if ($Desired -eq 'true' -and $HybridIsActiveOff.IsPresent) {
         }
     } catch {}
 }
-Write-Host 'Normalization done.'
+Log 'Normalization done.'
 
 # Backups/Restore setup
 $pngPath = [System.IO.Path]::ChangeExtension($SavePath, '.png')
