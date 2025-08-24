@@ -3,7 +3,7 @@ It switches your save games to different camera modes.
 
 				                      Warden mode autoswitching script.
 
-1) (on github) click Code -> Local -> Download as zip -> 
+1) (on github) click -> Code -> Local -> Download as zip -> 
 
 2) Extract the "Warden_Mode_Switcher" folder to wherever you feel like.
 
