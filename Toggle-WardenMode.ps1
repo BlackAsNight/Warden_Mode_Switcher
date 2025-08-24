@@ -263,43 +263,55 @@ function Ensure-WardenModeBlock {
 
         if ($full) {
             $inventoryBlock = if ($existingInventory) { $existingInventory } else { $defaultInventory }
-            $guardSquadBlock = if ($existingGuardSquad) { $existingGuardSquad } else { $defaultGuardSquad }
-            return @(
+            $parts = @(
                 'BEGIN WardenMode',
                 ('    IsActive             ' + $active),
                 ('    WardenId.i           ' + $ii),
                 ('    WardenId.u           ' + $uu),
                 '    InventoryView        true',
-                $inventoryBlock,
-                $guardSquadBlock,
-                'END'
-            ) -join "`r`n"
+                $inventoryBlock
+            )
+            if ($existingGuardSquad -and $existingGuardSquad -ne "SKIP_GUARDSQUAD") {
+                $parts += $existingGuardSquad
+            } elseif (-not $existingGuardSquad) {
+                $parts += $defaultGuardSquad
+            }
+            $parts += 'END'
+            return $parts -join "`r`n"
         }
         if ($compat) {
             $inventoryBlock = if ($existingInventory) { $existingInventory } else { $defaultInventory }
-            $guardSquadBlock = if ($existingGuardSquad) { $existingGuardSquad } else { $defaultGuardSquad }
-            return @(
+            $parts = @(
                 'BEGIN WardenMode',
                 ('    IsActive             ' + $active),
                 ('    WardenId.i           ' + $ii),
                 ('    WardenId.u           ' + $uu),
                 '    InventoryView        true',
-                $inventoryBlock,
-                $guardSquadBlock,
-                'END'
-            ) -join "`r`n"
+                $inventoryBlock
+            )
+            if ($existingGuardSquad -and $existingGuardSquad -ne "SKIP_GUARDSQUAD") {
+                $parts += $existingGuardSquad
+            } elseif (-not $existingGuardSquad) {
+                $parts += $defaultGuardSquad
+            }
+            $parts += 'END'
+            return $parts -join "`r`n"
         }
         $inventoryBlock = if ($existingInventory) { $existingInventory } else { $defaultInventory }
-        $guardSquadBlock = if ($existingGuardSquad) { $existingGuardSquad } else { $defaultGuardSquad }
-        return @(
+        $parts = @(
             'BEGIN WardenMode',
             ('    IsActive             ' + $active),
             ('    WardenId.i           ' + $ii),
             ('    WardenId.u           ' + $uu),
-            $inventoryBlock,
-            $guardSquadBlock,
-            'END'
-        ) -join "`r`n"
+            $inventoryBlock
+        )
+        if ($existingGuardSquad -and $existingGuardSquad -ne "SKIP_GUARDSQUAD") {
+            $parts += $existingGuardSquad
+        } elseif (-not $existingGuardSquad) {
+            $parts += $defaultGuardSquad
+        }
+        $parts += 'END'
+        return $parts -join "`r`n"
     }
 
     $lines = $FullText -split "`r`n"
@@ -344,12 +356,20 @@ function Ensure-WardenModeBlock {
             Log "Preserving existing inventory block for persistence."
         }
 
-        # Extract existing GuardSquad if present
-        $guardSquadMatch = [regex]::Match($existingBlock, '(?ims)^\s*BEGIN\s+GuardSquad\b.*?^\s*END\s*$')
-        if ($guardSquadMatch.Success) {
-            $existingGuardSquad = $guardSquadMatch.Value
-            Write-Host "Found existing GuardSquad block - preserving to prevent duplicates."
-            Log "Preserving existing GuardSquad block to prevent duplication."
+        # Check if ANY GuardSquad block exists in the entire save file
+        $fullText = $FullText
+        $anyGuardSquadExists = $fullText -match '(?ims)^\s*BEGIN\s+GuardSquad\b.*?^\s*END\s*$'
+        if ($anyGuardSquadExists) {
+            Write-Host "GuardSquad block already exists in save file - will not create another one."
+            Log "GuardSquad block already exists in save file - skipping creation."
+            # Extract the existing one from within WardenMode if present
+            $guardSquadMatch = [regex]::Match($existingBlock, '(?ims)^\s*BEGIN\s+GuardSquad\b.*?^\s*END\s*$')
+            if ($guardSquadMatch.Success) {
+                $existingGuardSquad = $guardSquadMatch.Value
+            } else {
+                # Use empty placeholder to indicate "don't create new one"
+                $existingGuardSquad = "SKIP_GUARDSQUAD"
+            }
         }
 
         # For disable mode, preserve all existing data and only set IsActive=false
@@ -482,6 +502,8 @@ if ($Desired -eq 'true' -and $HybridIsActiveOff.IsPresent) {
         }
     } catch {}
 }
+
+# No cleanup needed - GuardSquad creation is now properly controlled
 
 Log 'Normalization done.'
 
